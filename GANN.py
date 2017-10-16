@@ -52,13 +52,20 @@ class Gann():
         self.output = gmod.output # Output of last module is output of whole network
         if self.softmax_outputs: self.output = tf.nn.softmax(self.output)
         self.target = tf.placeholder(tf.float64,shape=(None,gmod.outsize),name='Target')
-        self.configure_learning()
+        self.configure_learning_MSE()
 
     # The optimizer knows to gather up all "trainable" variables in the function graph and compute
     # derivatives of the error function with respect to each component of each variable, i.e. each weight
     # of the weight array.
 
-    def configure_learning(self):
+    def configure_learning_CE(self):
+        self.error = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=self.output, labels=self.target))
+        self.predictor = self.output  # Simple prediction runs will request the value of output neurons
+        # Defining the training operator
+        optimizer = tf.train.GradientDescentOptimizer(self.learning_rate)
+        self.trainer = optimizer.minimize(self.error,name='Backprop')
+
+    def configure_learning_MSE(self):
         self.error = tf.reduce_mean(tf.square(self.target - self.output),name='MSE')
         self.predictor = self.output  # Simple prediction runs will request the value of output neurons
         # Defining the training operator
@@ -85,14 +92,32 @@ class Gann():
         TFT.plot_training_history(self.error_history,self.validation_history,xtitle="Epoch",ytitle="Error",
                                   title="",fig=not(continued))
 
-    def do_testing(self,sess,cases,msg='Testing'):
+    def do_testing(self,sess,cases,msg='Testing',bestk=1):
         inputs = [c[0] for c in cases]; targets = [c[1] for c in cases]
         feeder = {self.input: inputs, self.target: targets}
-        error, grabvals, _ = self.run_one_step(self.error, self.grabvars, self.probes, session=sess,
+        self.test_func = self.error
+        if bestk is not None:
+            self.test_func = self.gen_match_counter(self.predictor,[TFT.one_hot_to_int(list(v)) for v in targets],k=bestk)
+        testres, grabvals, _ = self.run_one_step(self.test_func, self.grabvars, self.probes, session=sess,
                                            feed_dict=feeder,  show_interval=None)
-        print('%s Set Error = %f ' % (msg, error))
-        return error  # self.error uses MSE, so this is a per-case value
+        if bestk is None:
+            print('%s Set Error = %f ' % (msg, testres))
+        else:
+            print('%s Set Correct Classifications = %f %%' % (msg, 100*(testres/len(cases))))
+        return testres  # self.error uses MSE, so this is a per-case value when bestk=None
 
+    # Logits = tensor, float - [batch_size, NUM_CLASSES].
+    # labels: Labels tensor, int32 - [batch_size], with values in range [0, NUM_CLASSES).
+    # in_top_k checks whether correct val is in the top k logit outputs.  It returns a vector of shape [batch_size]
+    # This returns a OPERATION object that still needs to be RUN to get a count.
+    # tf.nn.top_k differs from tf.nn.in_top_k in the way they handle ties.  The former takes the lowest index, while
+    # the latter includes them ALL in the "top_k", even if that means having more than k "winners".  This causes
+    # problems when ALL outputs are the same value, such as 0, since in_top_k would then signal a match for any
+    # target.  Unfortunately, top_k requires a different set of arguments...and is harder to use.
+
+    def gen_match_counter(self, logits, labels, k=1):
+        correct = tf.nn.in_top_k(tf.cast(logits,tf.float32), labels, k) # Return number of correct outputs
+        return tf.reduce_sum(tf.cast(correct, tf.int32))
 
     def training_session(self,epochs,sess=None,dir="probeview",continued=False):
         self.roundup_probes()
@@ -104,6 +129,7 @@ class Gann():
         cases = self.caseman.get_testing_cases()
         if len(cases) > 0:
             self.do_testing(sess,cases,msg='Final Testing')
+
 
     def consider_validation_testing(self,epoch,sess):
         if self.validation_interval and (epoch % self.validation_interval == 0):
@@ -136,9 +162,11 @@ class Gann():
         print("\n" + msg, end="\n")
         fig_index = 0
         for i, v in enumerate(grabbed_vals):
+            v = np.array([v])
             if names: print("   " + names[i] + " = ", end="\n")
             if type(v) == np.ndarray and len(v.shape) > 1: # If v is a matrix, use hinton plotting
                 TFT.hinton_plot(v,fig=self.grabvar_figures[fig_index],title= names[i]+ ' at step '+ str(step))
+                #TFT.display_matrix(v,fig=self.grabvar_figures[fig_index],title= names[i]+ ' at step '+ str(step))
                 fig_index += 1
             else:
                 print(v, end="\n\n")
@@ -274,7 +302,7 @@ class Caseman():
 
 # After running this, open a Tensorboard (Go to localhost:6006 in your Chrome Browser) and check the@
 # 'scalar', 'distribution' and 'histogram' menu options to view the probed variables.
-def run_network(dataSource, hidden, lrate, epochs, vfrac, tfrac, mbs, sm, initWeightRange, hiddenActFunct, caseFraction=1, vint=100, showint=100):
+def run_network(dataSource, hidden, lrate, epochs, vfrac, tfrac, mbs, sm, initWeightRange, hiddenActFunct, displayLayers = [], caseFraction=1, vint=100, showint=100):
     case_generator = (lambda: GWG.getData(dataSource, caseFraction))
     cman = Caseman(cfunc=case_generator,vfrac=vfrac,tfrac=tfrac)
     mbs = mbs if mbs else len(cman.training_cases)
@@ -287,14 +315,16 @@ def run_network(dataSource, hidden, lrate, epochs, vfrac, tfrac, mbs, sm, initWe
     dimensions.append(outputSize)
     ann = Gann(dims=dimensions,cman=cman,lrate=lrate,showint=showint,mbs=mbs,vint=vint,softmax=sm, initWeightRange = initWeightRange, hiddenActFunct=hiddenActFunct)
 
-    ann.gen_probe(0,'wgt',('hist','avg'))  # Plot a histogram and avg of the incoming weights to module 0.
-    ann.gen_probe(1,'out',('avg','max'))  # Plot average and max value of module 1's output vector
-    ann.add_grabvar(0,'wgt') # Add a grabvar (to be displayed in its own matplotlib window).
+    #ann.gen_probe(0,'wgt',('hist','avg'))  # Plot a histogram and avg of the incoming weights to module 0.
+    #ann.gen_probe(1,'out',('avg','max'))  # Plot average and max value of module 1's output vector
+    for i in displayLayers:
+        ann.add_grabvar(i,'bias') # Add a grabvar (to be displayed in its own matplotlib window).
+    #ann.add_grabvar(2,'bias') # Add a grabvar (to be displayed in its own matplotlib window).
     
     ann.run(epochs)
     ann.runmore(epochs*2)
     
     return ann
 
-run_network(dataSource = 'winequality_red.txt', hidden = [4,4], lrate = 0.03, epochs = 300, vfrac=0.1, tfrac=0.1, mbs = None, sm = False, initWeightRange = (-0.1, 0.1), hiddenActFunct = 'relu')
+run_network(dataSource = 'winequality_red.txt', hidden = [4,3], lrate = 0.03, epochs = 500, vfrac=0.1, tfrac=0.1, mbs = 20, sm = True, initWeightRange = (-0.1, 0.1), hiddenActFunct = 'sigmoid', displayLayers = [])
 
