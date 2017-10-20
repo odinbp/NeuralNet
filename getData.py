@@ -2,6 +2,7 @@ import csv
 import tflowtools as TFT
 import math
 import mnist_basics as mb
+import random
 
 results = []
 feature_data = []
@@ -9,23 +10,24 @@ feature_class = []
 dataStructured = []
 
 def getData(ds, caseFraction, noClasses):
+	dataStructured = []
 	if ds == "mnist":
 		features,labels = mb.load_all_flat_cases()
-		if caseFraction != 1: 
-			features = features[:int(caseFraction*len(features))]
-			labels = labels[:int(caseFraction*len(labels))]
 		scale(features)
 		ohl = make_one_hot(labels, noClasses)
 		for i in range(len(features)):
 			dataStructured.append([features[i], ohl[i]])
-		return dataStructured
 	elif len(ds) > 4 and ds[-4] == '.':
-		return getTextFileData(ds, caseFraction, noClasses)
+		dataStructured = getTextFileData(ds, caseFraction, noClasses)
 	else:
 		t = ds.split(';')
 		temp = t[1].split(',')
 		par = list(map(int, temp))
-		return getattr(TFT, t[0])(*par)
+		dataStructured = getattr(TFT, t[0])(*par)
+	if caseFraction != 1: 
+			random.shuffle(dataStructured)
+			dataStructured = dataStructured[:int(caseFraction*len(dataStructured))]
+	return dataStructured
 
 def getTextFileData(x, caseFraction, noClases):
 	no_of_lines = 0

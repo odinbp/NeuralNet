@@ -12,20 +12,25 @@ import getData as GWG
 
 class Gann():
 
-    def __init__(self, dims, cman, initWeightRange, hiddenActFunct, lrate=.1,showint=None,mbs=10,vint=None,softmax=False):
+    def __init__(self, dims, cman, initWeightRange, hiddenActFunct, mapBatchSize, costFunct, lrate=.1,showint=None,mbs=10,vint=None,softmax=False):
         self.learning_rate = lrate
         self.layer_sizes = dims # Sizes of each layer of neurons
         self.show_interval = showint # Frequency of showing grabbed variables
         self.global_training_step = 0 # Enables coherent data-storage during extra training runs (see runmore).
         self.grabvars = []  # Variables to be monitored (by gann code) during a run.
         self.grabvar_figures = [] # One matplotlib figure for each grabvar
+        self.mapLayer_grabvars = []  # Variables to be monitored (by gann code) during a run.
+        self.mapLayer_grabvar_figures = [] # One matplotlib figure for each grabvar
+        self.dendrogram_grabvars = []  # Variables to be monitored (by gann code) during a run.
+        self.dendrogram_grabvar_figures = [] # One matplotlib figure for each grabvar
+        self.mapBatchSize = mapBatchSize
         self.minibatch_size = mbs
         self.validation_interval = vint
         self.validation_history = []
         self.caseman = cman
         self.softmax_outputs = softmax
         self.modules = []
-        self.build(initWeightRange, hiddenActFunct)
+        self.build(initWeightRange, hiddenActFunct, costFunct)
 
     # Probed variables are to be displayed in the Tensorboard.
     def gen_probe(self, module_index, type, spec):
@@ -36,14 +41,22 @@ class Gann():
     def add_grabvar(self,module_index,type='wgt'):
         self.grabvars.append(self.modules[module_index].getvar(type))
         self.grabvar_figures.append(PLT.figure())
-        #self.grabvar_figures.append(PLT.figure())        For matrix plot
+        self.grabvar_figures.append(PLT.figure())        #For matrix plot
+
+    def add_mapLayer_grabvar(self,module_index,type='out'):
+        self.mapLayer_grabvars.append(self.modules[module_index].getvar(type))
+        self.mapLayer_grabvar_figures.append(PLT.figure())
+
+    def add_dendrogram_grabvar(self,module_index,type='out'):
+        self.dendrogram_grabvars.append(self.modules[module_index].getvar(type))
+        self.dendrogram_grabvar_figures.append(PLT.figure())
 
     def roundup_probes(self):
         self.probes = tf.summary.merge_all()
 
     def add_module(self,module): self.modules.append(module)
 
-    def build(self, initWeightRange, hiddenActFunct):
+    def build(self, initWeightRange, hiddenActFunct, costFunct):
         tf.reset_default_graph()  # This is essential for doing multiple runs!!
         num_inputs = self.layer_sizes[0]
         self.input = tf.placeholder(tf.float64, shape=(None, num_inputs), name='Input')
@@ -55,14 +68,17 @@ class Gann():
         self.output = gmod.output # Output of last module is output of whole network
         if self.softmax_outputs: self.output = tf.nn.softmax(self.output)
         self.target = tf.placeholder(tf.float64,shape=(None,gmod.outsize),name='Target')
-        self.configure_learning()
+        self.configure_learning(costFunct)
 
     # The optimizer knows to gather up all "trainable" variables in the function graph and compute
     # derivatives of the error function with respect to each component of each variable, i.e. each weight
     # of the weight array.
 
-    def configure_learning(self):
-        self.error = tf.reduce_mean(tf.square(self.target - self.output),name='MSE')
+    def configure_learning(self, costFunct = 'MSE'):
+        if costFunct == 'MSE':
+            self.error = tf.reduce_mean(tf.square(self.target - self.output),name='MSE')
+        else: 
+            self.error = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits = self.output, labels = self.target),name='CE')
         self.predictor = self.output  # Simple prediction runs will request the value of output neurons
         # Defining the training operator
         optimizer = tf.train.GradientDescentOptimizer(self.learning_rate)
@@ -79,15 +95,13 @@ class Gann():
                 minibatch = cases[cstart:cend]
                 inputs = [c[0] for c in minibatch]; targets = [c[1] for c in minibatch]
                 feeder = {self.input: inputs, self.target: targets}
-                _,grabvals,_ = self.run_one_step([self.trainer],gvars,self.probes,session=sess,
+                k,grabvals,_ = self.run_one_step([self.trainer],gvars,self.probes,session=sess,
                                          feed_dict=feeder,step=step,show_interval=self.show_interval)
                 error += grabvals[0]
             self.error_history.append((step, error/nmb))
             self.consider_validation_testing(step,sess, mbs)
         self.global_training_step += epochs
-        TFT.plot_training_history(self.error_history,xtitle="Epoch",ytitle="Error",
-                                  title="",fig=not(continued))
-        TFT.plot_training_history(self.validation_history,xtitle="Epoch",ytitle="Error",
+        TFT.plot_training_history(self.error_history,self.validation_history, xtitle="Epoch",ytitle="Error",
                                   title="",fig=not(continued))
 
     # bestk = 1 when you're doing a classification task and the targets are one-hot vectors.  This will invoke the
@@ -107,6 +121,23 @@ class Gann():
         else:
             print('%s Set Correct Classifications = %f %%' % (msg, 100*(testres/len(cases))))
         return testres  # self.error uses MSE, so this is a per-case value when bestk=None
+
+    def do_mapLayer_mapping(self,sess,cases,msg='Testing'):
+        inputs = [c[0] for c in cases]; targets = [c[1] for c in cases]
+        feeder = {self.input: inputs, self.target: targets}
+        self.test_func = self.predictor
+        testres, grabvals, _ = self.run_one_step(self.test_func, self.mapLayer_grabvars, self.probes, session=sess,
+                                           feed_dict=feeder,  show_interval=None)
+        return testres, grabvals  # self.error uses MSE, so this is a per-case value when bestk=None
+
+    def do_dendrogram_mapping(self,sess,cases,msg='Testing'):
+        inputs = [c[0] for c in cases]; targets = [c[1] for c in cases]
+        feeder = {self.input: inputs, self.target: targets}
+        self.test_func = self.predictor
+        testres, grabvals, _ = self.run_one_step(self.test_func, self.dendrogram_grabvars, self.probes, session=sess,
+                                           feed_dict=feeder,  show_interval=None)
+        return testres, grabvals # self.error uses MSE, so this is a per-case value when bestk=None
+
 
     # Logits = tensor, float - [batch_size, NUM_CLASSES].
     # labels: Labels tensor, int32 - [batch_size], with values in range [0, NUM_CLASSES).
@@ -131,6 +162,16 @@ class Gann():
         cases = self.caseman.get_testing_cases()
         if len(cases) > 0:
             self.do_testing(sess,cases,msg='Final Testing',bestk=bestk)
+
+    def mapping_session(self,sess,bestk=None):
+        cases = self.caseman.get_training_cases()[:self.mapBatchSize]
+        if len(cases) > 0:
+            test, mapLayerVals = self.do_mapLayer_mapping(sess,cases,msg='Mapping')
+            test, dendrogramVals = self.do_dendrogram_mapping(sess,cases,msg='Mapping')
+        if(len(mapLayerVals)>0):
+            self.display_mapvars(mapLayerVals, self.mapLayer_grabvars, mode = 'h', cases = cases)
+        if(len(dendrogramVals)>0):
+            self.display_mapvars(dendrogramVals, self.dendrogram_grabvars, mode = 'd', cases = cases)
 
     def consider_validation_testing(self,epoch,sess, mbs):
         if self.validation_interval and (epoch % self.validation_interval == 0):
@@ -173,6 +214,21 @@ class Gann():
                 #fig_index += 1
             #else:
                 #print(v, end="\n\n")
+
+    def display_mapvars(self, grabbed_vals, grabbed_vars, mode = 'h', cases = None):
+        names = [x.name for x in grabbed_vars];
+        fig_index = 0
+        for i, v in enumerate(grabbed_vals):
+            if mode == 'h': # If v is a matrix
+                TFT.hinton_plot(v,fig=self.mapLayer_grabvar_figures[fig_index],title= names[i])
+                fig_index += 1
+            elif mode == 'd': # If v is a matrix
+                labels = []
+                for j in cases:
+                    labels.append(''.join(str(e) for e in j[0]))
+                grabbed_vals = grabbed_vals[0].tolist()
+                TFT.dendrogram(grabbed_vals, labels)
+        
         
         
 
@@ -181,6 +237,8 @@ class Gann():
         self.training_session(epochs,sess=sess,continued=continued)
         self.test_on_trains(sess=self.current_session,bestk=bestk)
         self.testing_session(sess=self.current_session,bestk=bestk)
+        if self.mapBatchSize != 0:
+            self.mapping_session(sess=self.current_session)
         self.close_current_session(view=False)
         PLT.ioff()
 
@@ -298,29 +356,35 @@ class Caseman():
 
 
 #   ****  MAIN functions ****
-def run_network(dataSource, hidden, lrate, epochs, vfrac, tfrac, mbs, sm, initWeightRange, hiddenActFunct, displayWeights = [], displayBiases = [], bestk = None, caseFraction=1, vint=100, showint=1000):
-    case_generator = (lambda: GWG.getData(dataSource, caseFraction, 10))
+def run_network(dataSource, hidden, lrate, epochs, vfrac, tfrac, mbs, sm, initWeightRange, hiddenActFunct, costFunct, displayWeights = [], displayBiases = [], mapLayers = [], mapDendrograms = [], mapBatchSize=0, bestk = None, caseFraction=1, vint=100, showint=1000):
+    case_generator = (lambda: GWG.getData(dataSource, caseFraction,11))
     cman = Caseman(cfunc=case_generator,vfrac=vfrac,tfrac=tfrac)
     mbs = mbs if mbs else len(cman.training_cases)
-    inputSize = len(cman.cases[1][0])
-    outputSize = len(cman.cases[1][1])
+
+    inputSize = len(cman.cases[0][0])
+    outputSize = len(cman.cases[0][1])
     dimensions = []
     dimensions.append(inputSize)
     for element in hidden:
         dimensions.append(element)
     dimensions.append(outputSize)
-    ann = Gann(dims=dimensions,cman=cman,lrate=lrate,showint=showint,mbs=mbs,vint=vint,softmax=sm, initWeightRange = initWeightRange, hiddenActFunct=hiddenActFunct)
+    ann = Gann(dims=dimensions,cman=cman,lrate=lrate,showint=showint,mbs=mbs,vint=vint,softmax=sm, initWeightRange = initWeightRange, hiddenActFunct=hiddenActFunct, costFunct = costFunct, mapBatchSize = mapBatchSize)
 
     for i in displayWeights:
         ann.add_grabvar(i,'wgt') # Add a grabvar (to be displayed in its own matplotlib window).
     
     for i in displayBiases:
         ann.add_grabvar(i,'bias') # Add a grabvar (to be displayed in its own matplotlib window).
+
+    for i in mapLayers:
+        ann.add_mapLayer_grabvar(i,'out') # Add a grabvar (to be map tested and visualized in its own matplotlib window).
+
+    for i in mapDendrograms:
+        ann.add_dendrogram_grabvar(i,'out') # Add a grabvar (to be map tested and made dendrogram from in its own matplotlib window).
     
     ann.run(epochs, bestk = bestk)
     ann.runmore(epochs*2, bestk = bestk)
     
     return ann
 
-run_network(dataSource = 'glass.txt', hidden = [15], lrate = 0.1, epochs = 1000, vfrac=0.1, tfrac=0.1, mbs = 20, sm = True, initWeightRange = (-0.1, 0.1), hiddenActFunct = 'relu', displayWeights = [], displayBiases = [], bestk = 1, caseFraction = 1)
-
+run_network(dataSource = 'gen_segmented_vector_cases; 25, 1000, 0, 8', hidden = [30, 10], lrate = 0.5, epochs = 5000, vfrac=0.1, tfrac=0.1, mbs = 100, sm = True, initWeightRange = (-0.1, 0.1), hiddenActFunct = 'relu', costFunct = 'CE', displayWeights = [1], displayBiases = [1], mapLayers = [1], mapDendrograms = [], mapBatchSize = 20, bestk = 1, caseFraction = 1)
