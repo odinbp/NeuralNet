@@ -36,7 +36,7 @@ class Gann():
     def add_grabvar(self,module_index,type='wgt'):
         self.grabvars.append(self.modules[module_index].getvar(type))
         self.grabvar_figures.append(PLT.figure())
-        self.grabvar_figures.append(PLT.figure())
+        #self.grabvar_figures.append(PLT.figure())        For matrix plot
 
     def roundup_probes(self):
         self.probes = tf.summary.merge_all()
@@ -83,9 +83,11 @@ class Gann():
                                          feed_dict=feeder,step=step,show_interval=self.show_interval)
                 error += grabvals[0]
             self.error_history.append((step, error/nmb))
-            self.consider_validation_testing(step,sess)
+            self.consider_validation_testing(step,sess, mbs)
         self.global_training_step += epochs
-        TFT.plot_training_history(self.error_history,self.validation_history,xtitle="Epoch",ytitle="Error",
+        TFT.plot_training_history(self.error_history,xtitle="Epoch",ytitle="Error",
+                                  title="",fig=not(continued))
+        TFT.plot_training_history(self.validation_history,xtitle="Epoch",ytitle="Error",
                                   title="",fig=not(continued))
 
     # bestk = 1 when you're doing a classification task and the targets are one-hot vectors.  This will invoke the
@@ -130,12 +132,12 @@ class Gann():
         if len(cases) > 0:
             self.do_testing(sess,cases,msg='Final Testing',bestk=bestk)
 
-    def consider_validation_testing(self,epoch,sess):
+    def consider_validation_testing(self,epoch,sess, mbs):
         if self.validation_interval and (epoch % self.validation_interval == 0):
             cases = self.caseman.get_validation_cases()
             if len(cases) > 0:
                 error = self.do_testing(sess,cases,msg='Validation Testing', bestk=1)
-                self.validation_history.append((epoch,error))
+                self.validation_history.append((epoch,(mbs-error)/mbs))
 
     # Do testing (i.e. calc error without learning) on the training set.
     def test_on_trains(self,sess,bestk=None):
@@ -155,7 +157,7 @@ class Gann():
             self.display_grabvars(results[1], grabbed_vars, step=step)
         return results[0], results[1], sess
 
-    def display_grabvars(self, grabbed_vals, grabbed_vars,step=1):
+    def display_grabvars(self, grabbed_vals, grabbed_vars, step=1):
         names = [x.name for x in grabbed_vars];
         msg = "Grabbed Variables at Step " + str(step)
         #print("\n" + msg, end="\n")
@@ -167,10 +169,12 @@ class Gann():
             if type(v) == np.ndarray and len(v.shape) > 1: # If v is a matrix
                 TFT.hinton_plot(v,fig=self.grabvar_figures[fig_index],title= names[i]+ ' at step '+ str(step))
                 fig_index += 1
-                TFT.display_matrix(v,fig=self.grabvar_figures[fig_index],title= names[i]+ ' at step '+ str(step))
-                fig_index += 1
+                #TFT.display_matrix(v,fig=self.grabvar_figures[fig_index],title= names[i]+ ' at step '+ str(step))   For matrix plot
+                #fig_index += 1
             #else:
                 #print(v, end="\n\n")
+        
+        
 
     def run(self,epochs=100,sess=None,continued=False,bestk=1):
         PLT.ion()
@@ -294,8 +298,8 @@ class Caseman():
 
 
 #   ****  MAIN functions ****
-def run_network(dataSource, hidden, lrate, epochs, vfrac, tfrac, mbs, sm, initWeightRange, hiddenActFunct, displayWeights = [], displayBiases = [], bestk = None, caseFraction=1, vint=100, showint=500):
-    case_generator = (lambda: GWG.getData(dataSource, caseFraction, 8))
+def run_network(dataSource, hidden, lrate, epochs, vfrac, tfrac, mbs, sm, initWeightRange, hiddenActFunct, displayWeights = [], displayBiases = [], bestk = None, caseFraction=1, vint=100, showint=1000):
+    case_generator = (lambda: GWG.getData(dataSource, caseFraction, 10))
     cman = Caseman(cfunc=case_generator,vfrac=vfrac,tfrac=tfrac)
     mbs = mbs if mbs else len(cman.training_cases)
     inputSize = len(cman.cases[1][0])
@@ -318,5 +322,5 @@ def run_network(dataSource, hidden, lrate, epochs, vfrac, tfrac, mbs, sm, initWe
     
     return ann
 
-run_network(dataSource = 'glass.txt', hidden = [30], lrate = 0.1, epochs = 5000, vfrac=0.1, tfrac=0.1, mbs = 20, sm = True, initWeightRange = (-0.1, 0.1), hiddenActFunct = 'relu', displayWeights = [], displayBiases = [], bestk = 1, caseFraction = 1 )
+run_network(dataSource = 'glass.txt', hidden = [15], lrate = 0.1, epochs = 1000, vfrac=0.1, tfrac=0.1, mbs = 20, sm = True, initWeightRange = (-0.1, 0.1), hiddenActFunct = 'relu', displayWeights = [], displayBiases = [], bestk = 1, caseFraction = 1)
 
