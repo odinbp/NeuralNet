@@ -9,6 +9,8 @@ from sklearn import preprocessing
 results = []
 feature_data = []
 feature_class = []
+features = []
+classes = []
 dataStructured = []
 
 def getData(ds, caseFraction, noClasses):
@@ -45,6 +47,7 @@ def getTextFileData(x, caseFraction, noClases):
 				feature_data = row[:-1]
 				feature_data = list(map(float, feature_data))
 				feature_class_value = int(row[-1])
+				feature_class_value = feature_class_value - 3
 				feature_class = TFT.int_to_one_hot(feature_class_value, noClases)
 				dataStructured.append([feature_data, feature_class])
 		else:
@@ -56,8 +59,11 @@ def getTextFileData(x, caseFraction, noClases):
 				feature_data = list(map(float, feature_data))
 				feature_class_value = int(row[-1])
 				feature_class = TFT.int_to_one_hot(feature_class_value, noClases)
-				dataStructured.append([feature_data, feature_class])
-	scale_others2(dataStructured)
+				features.append(feature_data)
+				classes.append(feature_class)
+	scaled = preprocessing.scale(features)
+	for i in range(len(scaled)):
+		dataStructured.append([scaled[i], classes[i]])
 	return dataStructured
 
 
@@ -76,13 +82,6 @@ def scale_others(unscaled):
 	for i in unscaled:
 		for k in range(len(i[0])):
 			i[0][k]=(i[0][k]-smallest[k])/(largest[k]-smallest[k])
-
-def scale_others2(unscaled):
-	features = []
-	for i in unscaled:
-		features.append(i[0])
-	scaled = preprocessing.scale(features)
-	return scaled
 
 
 

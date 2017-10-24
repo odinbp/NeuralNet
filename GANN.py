@@ -182,6 +182,7 @@ class Gann():
     def consider_validation_testing(self,epoch,sess, mbs):
         if self.validation_interval and (epoch % self.validation_interval == 0):
             cases = self.caseman.get_training_cases() #REMEMBER TO CHANGE BACK
+            #cases = self.caseman.get_validation_cases()
             if len(cases) > 0:
                 error = self.do_testing(sess,cases,msg='Validation Testing', bestk=1)
                 self.validation_history.append((epoch,error))
@@ -393,54 +394,39 @@ def run_network(dataSource='yeast.txt', hidden = [400], lrate = 0.01, epochs = 1
 
     return ann.trainingScore
 
-run_network(dataSource='winequality_red.txt', hidden = [100], lrate = 0.015, epochs = 1500, vfrac=0.1, tfrac=0.1, 
-    mbs = 100, sm = True, initWeightRange = (-0.1, 0.1), hiddenActFunct = 'sigmoid', costFunct = 'MSE', displayWeights = [],
-    displayBiases = [], mapLayers = [], mapDendrograms = [], mapBatchSize = 0, bestk = 1, caseFraction = 1, noClases = 9)
-
-
 
 #working architectures
-#run_network(dataSource = 'gen_segmented_vector_cases;25,1000,0,8', hidden = [30,15], lrate = 0.4, epochs = 5000, vfrac=0.1, tfrac=0.1, mbs = 100, sm = True, initWeightRange = (-0.1, 0.1), hiddenActFunct = 'relu', costFunct = 'MSE', displayWeights = [], displayBiases = [], mapLayers = [], mapDendrograms = [], mapBatchSize = 0, bestk = 1, caseFraction = 1)
+
+#run_network(dataSource='winequality_red.txt', hidden = [100], lrate = 0.015, epochs = 1500, vfrac=0.1, tfrac=0.1, 
+ #   mbs = 100, sm = True, initWeightRange = (-0.1, 0.1), hiddenActFunct = 'sigmoid', costFunct = 'MSE', displayWeights = [],
+  #  displayBiases = [], mapLayers = [], mapDendrograms = [], mapBatchSize = 0, bestk = 1, caseFraction = 1, noClases = 7)
+
+
+#run_network(dataSource='glass.txt', hidden = [100], lrate = 0.02, epochs = 1500, vfrac=0.1, tfrac=0.1, 
+ #   mbs = 100, sm = True, initWeightRange = (-0.1, 0.1), hiddenActFunct = 'sigmoid', costFunct = 'MSE', displayWeights = [],
+  #    displayBiases = [], mapLayers = [], mapDendrograms = [], mapBatchSize = 0, bestk = 1, caseFraction = 1, noClases = 11)
 
 
 
+#run_network(dataSource='yeast.txt', hidden = [100], lrate = 0.02, epochs = 1500, vfrac=0.1, tfrac=0.1, 
+ #   mbs = 100, sm = True, initWeightRange = (-0.1, 0.1), hiddenActFunct = 'sigmoid', costFunct = 'MSE', displayWeights = [],
+  #    displayBiases = [], mapLayers = [], mapDendrograms = [], mapBatchSize = 0, bestk = 1, caseFraction = 1, noClases = 11)
+
+#run_network(dataSource='balance.txt', hidden = [100], lrate = 0.02, epochs = 1500, vfrac=0.1, tfrac=0.1, 
+ #   mbs = 100, sm = True, initWeightRange = (-0.1, 0.1), hiddenActFunct = 'sigmoid', costFunct = 'MSE', displayWeights = [],
+  #    displayBiases = [], mapLayers = [], mapDendrograms = [], mapBatchSize = 0, bestk = 1, caseFraction = 1, noClases = 11)
 
 
-'''
-def run_config(file='config.xlsx',linenr=2):
-    df = pd.read_excel(file, sheetname='Sheet1')
-    print("Column headings:")
-    print(df.columns)
-    strings = ['dataSource','lrate','vfrac','tfrac','sm','hiddenActFunct', 'costFunct', 'bestk', 'caseFraction']
-    ints = ['noClases', 'epochs', 'mbs','vint', 'mapBatchSize', 'vint', 'showint']
-    lists = ['hidden','initWeightRange', 'displayWeights','displayBiases', 'mapLayers', 'mapDendrograms']
-    args = {}   #{'data_s':'glass.txt','dims':[9,9,8]}
+ #run_network(dataSource='gen_all_parity_cases;10', hidden = [10], lrate = 0.02, epochs = 1500, vfrac=0.1, tfrac=0.1, 
+  #  mbs = 100, sm = True, initWeightRange = (-0.1, 0.1), hiddenActFunct = 'sigmoid', costFunct = 'MSE', displayWeights = [],
+   #   displayBiases = [], mapLayers = [], mapDendrograms = [], mapBatchSize = 0, bestk = 1, caseFraction = 1, noClases = 11)
 
-    for s in strings:
-        if pd.notnull(df[s][linenr-2]):
-            args[s] = df[s][linenr-2]
-        # Below is just a hack
-        if 'bestk' in args:
-            if args['bestk'] == 'None':
-                args['bestk'] = None
-            else:
-                args['bestk'] = 1
-    for i in ints:
-        if pd.notnull(df[i][linenr-2]):
-            args[i] = int(df[i][linenr-2])
-    for l in lists:
-        if pd.notnull(df[l][linenr-2]):
-            if ';' in df[l][linenr-2]:
-                args[l] = list(map(int,df[l][linenr-2].split(';'))) # :TODO crashes if list not contains ','
-            else:
-                args[l] = int(df[l][linenr-2])
+#run_network(dataSource = 'gen_segmented_vector_cases;25,1000,0,8', hidden = [50], lrate = 0.015, epochs = 5000, vfrac=0.1,
+ #tfrac=0.1, mbs = 100, sm = True, initWeightRange = (-0.1, 0.1), hiddenActFunct = 'relu', costFunct = 'MSE', displayWeights = [],
+ #displayBiases = [], mapLayers = [], mapDendrograms = [], mapBatchSize = 0, bestk = 1, caseFraction = 1)
 
-    return run_network(**args)
+# run_network(dataSource='gen_vector_count_cases;500,15', hidden = [10], lrate = 0.02, epochs = 1500, vfrac=0.1, tfrac=0.1, 
+#    mbs = 100, sm = True, initWeightRange = (-0.1, 0.1), hiddenActFunct = 'sigmoid', costFunct = 'MSE', displayWeights = [],
+#      displayBiases = [], mapLayers = [], mapDendrograms = [], mapBatchSize = 0, bestk = 1, caseFraction = 1, noClases = 11)
 
-f = open('result.txt', 'w')
-for i in range(2, 102):
-    f.write(str(i)+ "  :    " + str(run_config(linenr = i))+'\n')
-f.close()
-
-'''
 
