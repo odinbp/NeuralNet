@@ -3,6 +3,8 @@ import tflowtools as TFT
 import math
 import mnist_basics as mb
 import random
+import numpy as np
+from sklearn import preprocessing
 
 results = []
 feature_data = []
@@ -55,7 +57,7 @@ def getTextFileData(x, caseFraction, noClases):
 				feature_class_value = int(row[-1])
 				feature_class = TFT.int_to_one_hot(feature_class_value, noClases)
 				dataStructured.append([feature_data, feature_class])
-	scale_others(dataStructured)
+	scale_others2(dataStructured)
 	return dataStructured
 
 
@@ -74,6 +76,13 @@ def scale_others(unscaled):
 	for i in unscaled:
 		for k in range(len(i[0])):
 			i[0][k]=(i[0][k]-smallest[k])/(largest[k]-smallest[k])
+
+def scale_others2(unscaled):
+	features = []
+	for i in unscaled:
+		features.append(i[0])
+	scaled = preprocessing.scale(features)
+	return scaled
 
 
 

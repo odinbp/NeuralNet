@@ -62,11 +62,15 @@ class Gann():
         self.input = tf.placeholder(tf.float64, shape=(None, num_inputs), name='Input')
         invar = self.input; insize = num_inputs
         # Build all of the modules
+        a = hiddenActFunct
+        l = len(self.layer_sizes) - 1
         for i,outsize in enumerate(self.layer_sizes[1:]):
-            gmod = Gannmodule(self,i,invar,insize,outsize, initWeightRange, hiddenActFunct)
+            if i + 1 == l:
+                a = 'softmax'
+            gmod = Gannmodule(self,i,invar,insize,outsize, initWeightRange, a)
             invar = gmod.output; insize = gmod.outsize
         self.output = gmod.output # Output of last module is output of whole network
-        if self.softmax_outputs: self.output = tf.nn.softmax(self.output)
+        #if self.softmax_outputs: self.output = tf.nn.softmax(self.output)
         self.target = tf.placeholder(tf.float64,shape=(None,gmod.outsize),name='Target')
         self.configure_learning(costFunct)
 
@@ -81,7 +85,7 @@ class Gann():
             self.error = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits = self.output, labels = self.target,name='CE'))
         self.predictor = self.output  # Simple prediction runs will request the value of output neurons
         # Defining the training operator
-        optimizer = tf.train.GradientDescentOptimizer(self.learning_rate)
+        optimizer = tf.train.AdamOptimizer(self.learning_rate)
         self.trainer = optimizer.minimize(self.error,name='Backprop')
 
     def do_training(self,sess,cases,epochs=100,continued=False):
@@ -108,7 +112,7 @@ class Gann():
     # gen_match_counter error function. Otherwise, when
     # bestk=None, the standard MSE error function is used for testing.
 
-    def do_testing(self,sess,cases,msg='Testing',bestk=1):
+    def do_testing(self,sess,cases,msg='Testing',bestk=None):
         inputs = [c[0] for c in cases]; targets = [c[1] for c in cases]
         feeder = {self.input: inputs, self.target: targets}
         self.test_func = self.error
@@ -177,7 +181,7 @@ class Gann():
 
     def consider_validation_testing(self,epoch,sess, mbs):
         if self.validation_interval and (epoch % self.validation_interval == 0):
-            cases = self.caseman.get_validation_cases()
+            cases = self.caseman.get_training_cases() #REMEMBER TO CHANGE BACK
             if len(cases) > 0:
                 error = self.do_testing(sess,cases,msg='Validation Testing', bestk=1)
                 self.validation_history.append((epoch,error))
@@ -358,7 +362,7 @@ class Caseman():
 
 
 #   ****  MAIN functions ****
-def run_network(dataSource='yeast.txt', hidden = [40, 15], lrate = 0.5, epochs = 100, vfrac=0.1, tfrac=0.1, mbs = 118, sm = True, initWeightRange = (-0.3, 0.3), hiddenActFunct = 'relu', costFunct = 'MSE', displayWeights = [], displayBiases = [], mapLayers = [], mapDendrograms = [], mapBatchSize = 0, bestk = 1, caseFraction = 1, noClases = 11, vint=100, showint=10000):
+def run_network(dataSource='yeast.txt', hidden = [400], lrate = 0.01, epochs = 100, vfrac=0.1, tfrac=0.1, mbs = 118, sm = True, initWeightRange = (-0.3, 0.3), hiddenActFunct = 'tanh', costFunct = 'MSE', displayWeights = [], displayBiases = [], mapLayers = [], mapDendrograms = [], mapBatchSize = 0, bestk = 1, caseFraction = 1, noClases = 11, vint=100, showint=10000):
     case_generator = (lambda: GWG.getData(dataSource, caseFraction,noClases))
     cman = Caseman(cfunc=case_generator,vfrac=vfrac,tfrac=tfrac)
     mbs = mbs if mbs else len(cman.training_cases)
@@ -385,12 +389,18 @@ def run_network(dataSource='yeast.txt', hidden = [40, 15], lrate = 0.5, epochs =
         ann.add_dendrogram_grabvar(i,'out') # Add a grabvar (to be map tested and made dendrogram from in its own matplotlib window).
     
     ann.run(epochs, bestk = bestk)
-    #ann.runmore(epochs*2, bestk = bestk)
+    ann.runmore(epochs*2, bestk = bestk)
 
     return ann.trainingScore
 
-run_network(dataSource='yeast.txt', hidden = [200], lrate = 0.5, epochs = 5000, vfrac=0.1, tfrac=0.1, mbs = 118, sm = True, initWeightRange = (-0.3, 0.3), hiddenActFunct = 'tanh', costFunct = 'CE', displayWeights = [], displayBiases = [], mapLayers = [], mapDendrograms = [], mapBatchSize = 0, bestk = 1, caseFraction = 1, noClases = 11)
+run_network(dataSource='winequality_red.txt', hidden = [100], lrate = 0.015, epochs = 1500, vfrac=0.1, tfrac=0.1, 
+    mbs = 100, sm = True, initWeightRange = (-0.1, 0.1), hiddenActFunct = 'sigmoid', costFunct = 'MSE', displayWeights = [],
+    displayBiases = [], mapLayers = [], mapDendrograms = [], mapBatchSize = 0, bestk = 1, caseFraction = 1, noClases = 9)
 
+
+
+#working architectures
+#run_network(dataSource = 'gen_segmented_vector_cases;25,1000,0,8', hidden = [30,15], lrate = 0.4, epochs = 5000, vfrac=0.1, tfrac=0.1, mbs = 100, sm = True, initWeightRange = (-0.1, 0.1), hiddenActFunct = 'relu', costFunct = 'MSE', displayWeights = [], displayBiases = [], mapLayers = [], mapDendrograms = [], mapBatchSize = 0, bestk = 1, caseFraction = 1)
 
 
 
