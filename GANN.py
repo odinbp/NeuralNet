@@ -6,6 +6,7 @@ import math
 import matplotlib.pyplot as PLT
 import tflowtools as TFT
 import getData as GWG
+import pandas as pd
 
 # ******* A General Artificial Neural Network ********
 # This is the original GANN, which has been improved in the file gann.py
@@ -41,7 +42,6 @@ class Gann():
     def add_grabvar(self,module_index,type='wgt'):
         self.grabvars.append(self.modules[module_index].getvar(type))
         self.grabvar_figures.append(PLT.figure())
-        self.grabvar_figures.append(PLT.figure())        #For matrix plot
 
     def add_mapLayer_grabvar(self,module_index,type='out'):
         self.mapLayer_grabvars.append(self.modules[module_index].getvar(type))
@@ -78,7 +78,7 @@ class Gann():
         if costFunct == 'MSE':
             self.error = tf.reduce_mean(tf.square(self.target - self.output),name='MSE')
         else: 
-            self.error = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits = self.output, labels = self.target),name='CE')
+            self.error = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits = self.output, labels = self.target,name='CE'))
         self.predictor = self.output  # Simple prediction runs will request the value of output neurons
         # Defining the training operator
         optimizer = tf.train.GradientDescentOptimizer(self.learning_rate)
@@ -120,6 +120,8 @@ class Gann():
             print('%s Set Error = %f ' % (msg, testres))
         else:
             print('%s Set Correct Classifications = %f %%' % (msg, 100*(testres/len(cases))))
+        if msg == 'Total Training':
+            self.trainingScore = (100*testres/len(cases))
         return testres  # self.error uses MSE, so this is a per-case value when bestk=None
 
     def do_mapLayer_mapping(self,sess,cases,msg='Testing'):
@@ -178,11 +180,11 @@ class Gann():
             cases = self.caseman.get_validation_cases()
             if len(cases) > 0:
                 error = self.do_testing(sess,cases,msg='Validation Testing', bestk=1)
-                self.validation_history.append((epoch,(mbs-error)/mbs))
+                self.validation_history.append((epoch,error))
 
     # Do testing (i.e. calc error without learning) on the training set.
     def test_on_trains(self,sess,bestk=None):
-        self.do_testing(sess,self.caseman.get_training_cases(),msg='Total Training',bestk=bestk)
+        res = self.do_testing(sess,self.caseman.get_training_cases(),msg='Total Training',bestk=bestk)
 
     # Similar to the "quickrun" functions used earlier.
 
@@ -356,8 +358,8 @@ class Caseman():
 
 
 #   ****  MAIN functions ****
-def run_network(dataSource, hidden, lrate, epochs, vfrac, tfrac, mbs, sm, initWeightRange, hiddenActFunct, costFunct, displayWeights = [], displayBiases = [], mapLayers = [], mapDendrograms = [], mapBatchSize=0, bestk = None, caseFraction=1, vint=100, showint=1000):
-    case_generator = (lambda: GWG.getData(dataSource, caseFraction,11))
+def run_network(dataSource='yeast.txt', hidden = [40, 15], lrate = 0.5, epochs = 100, vfrac=0.1, tfrac=0.1, mbs = 118, sm = True, initWeightRange = (-0.3, 0.3), hiddenActFunct = 'relu', costFunct = 'MSE', displayWeights = [], displayBiases = [], mapLayers = [], mapDendrograms = [], mapBatchSize = 0, bestk = 1, caseFraction = 1, noClases = 11, vint=100, showint=10000):
+    case_generator = (lambda: GWG.getData(dataSource, caseFraction,noClases))
     cman = Caseman(cfunc=case_generator,vfrac=vfrac,tfrac=tfrac)
     mbs = mbs if mbs else len(cman.training_cases)
 
@@ -383,8 +385,52 @@ def run_network(dataSource, hidden, lrate, epochs, vfrac, tfrac, mbs, sm, initWe
         ann.add_dendrogram_grabvar(i,'out') # Add a grabvar (to be map tested and made dendrogram from in its own matplotlib window).
     
     ann.run(epochs, bestk = bestk)
-    ann.runmore(epochs*2, bestk = bestk)
-    
-    return ann
+    #ann.runmore(epochs*2, bestk = bestk)
 
-run_network(dataSource = 'gen_segmented_vector_cases; 25, 1000, 0, 8', hidden = [30, 10], lrate = 0.5, epochs = 5000, vfrac=0.1, tfrac=0.1, mbs = 100, sm = True, initWeightRange = (-0.1, 0.1), hiddenActFunct = 'relu', costFunct = 'CE', displayWeights = [1], displayBiases = [1], mapLayers = [1], mapDendrograms = [], mapBatchSize = 20, bestk = 1, caseFraction = 1)
+    return ann.trainingScore
+
+run_network(dataSource='yeast.txt', hidden = [200], lrate = 0.5, epochs = 5000, vfrac=0.1, tfrac=0.1, mbs = 118, sm = True, initWeightRange = (-0.3, 0.3), hiddenActFunct = 'tanh', costFunct = 'CE', displayWeights = [], displayBiases = [], mapLayers = [], mapDendrograms = [], mapBatchSize = 0, bestk = 1, caseFraction = 1, noClases = 11)
+
+
+
+
+
+
+'''
+def run_config(file='config.xlsx',linenr=2):
+    df = pd.read_excel(file, sheetname='Sheet1')
+    print("Column headings:")
+    print(df.columns)
+    strings = ['dataSource','lrate','vfrac','tfrac','sm','hiddenActFunct', 'costFunct', 'bestk', 'caseFraction']
+    ints = ['noClases', 'epochs', 'mbs','vint', 'mapBatchSize', 'vint', 'showint']
+    lists = ['hidden','initWeightRange', 'displayWeights','displayBiases', 'mapLayers', 'mapDendrograms']
+    args = {}   #{'data_s':'glass.txt','dims':[9,9,8]}
+
+    for s in strings:
+        if pd.notnull(df[s][linenr-2]):
+            args[s] = df[s][linenr-2]
+        # Below is just a hack
+        if 'bestk' in args:
+            if args['bestk'] == 'None':
+                args['bestk'] = None
+            else:
+                args['bestk'] = 1
+    for i in ints:
+        if pd.notnull(df[i][linenr-2]):
+            args[i] = int(df[i][linenr-2])
+    for l in lists:
+        if pd.notnull(df[l][linenr-2]):
+            if ';' in df[l][linenr-2]:
+                args[l] = list(map(int,df[l][linenr-2].split(';'))) # :TODO crashes if list not contains ','
+            else:
+                args[l] = int(df[l][linenr-2])
+
+    return run_network(**args)
+
+f = open('result.txt', 'w')
+for i in range(2, 102):
+    f.write(str(i)+ "  :    " + str(run_config(linenr = i))+'\n')
+f.close()
+
+'''
+

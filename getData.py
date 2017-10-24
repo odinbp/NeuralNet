@@ -13,7 +13,7 @@ def getData(ds, caseFraction, noClasses):
 	dataStructured = []
 	if ds == "mnist":
 		features,labels = mb.load_all_flat_cases()
-		scale(features)
+		scale_MNIST(features)
 		ohl = make_one_hot(labels, noClasses)
 		for i in range(len(features)):
 			dataStructured.append([features[i], ohl[i]])
@@ -55,13 +55,27 @@ def getTextFileData(x, caseFraction, noClases):
 				feature_class_value = int(row[-1])
 				feature_class = TFT.int_to_one_hot(feature_class_value, noClases)
 				dataStructured.append([feature_data, feature_class])
+	scale_others(dataStructured)
 	return dataStructured
 
 
-def scale(unscaled):
+def scale_MNIST(unscaled):
 	for i in unscaled:
 		for k in range(len(i)):
 			i[k]=i[k]/255
+
+def scale_others(unscaled):
+	smallest = [10000000 for i in range(len(unscaled[0][0]))]
+	largest = [0 for i in range(len(unscaled[0][0]))]
+	for i in unscaled:
+		for k in range(len(i[0])):
+			if i[0][k]>largest[k]: largest[k]=i[0][k]
+			if i[0][k]<smallest[k]: smallest[k]=i[0][k]
+	for i in unscaled:
+		for k in range(len(i[0])):
+			i[0][k]=(i[0][k]-smallest[k])/(largest[k]-smallest[k])
+
+
 
 def make_one_hot(labels, noClases):
 	ohl = []
