@@ -394,23 +394,27 @@ def run_network(dataSource='yeast.txt', hidden = [400], lrate = 0.01, epochs = 1
 
     return ann.trainingScore
 
+run_network(dataSource='mnist', hidden = [100], lrate = 0.015, epochs = 1500, vfrac=0.1, tfrac=0.1, 
+    mbs = 100, sm = True, initWeightRange = (-0.1, 0.1), hiddenActFunct = 'sigmoid', costFunct = 'MSE', displayWeights = [],
+    displayBiases = [], mapLayers = [], mapDendrograms = [], mapBatchSize = 0, bestk = 1, caseFraction = 1, noClases = 7)
+
+
 
 #working architectures
-
 #run_network(dataSource='winequality_red.txt', hidden = [100], lrate = 0.015, epochs = 1500, vfrac=0.1, tfrac=0.1, 
  #   mbs = 100, sm = True, initWeightRange = (-0.1, 0.1), hiddenActFunct = 'sigmoid', costFunct = 'MSE', displayWeights = [],
   #  displayBiases = [], mapLayers = [], mapDendrograms = [], mapBatchSize = 0, bestk = 1, caseFraction = 1, noClases = 7)
 
 
-#run_network(dataSource='glass.txt', hidden = [100], lrate = 0.02, epochs = 1500, vfrac=0.1, tfrac=0.1, 
+#run_network(dataSource='glass.txt', hidden = [10], lrate = 0.02, epochs = 1500, vfrac=0.1, tfrac=0.1, 
  #   mbs = 100, sm = True, initWeightRange = (-0.1, 0.1), hiddenActFunct = 'sigmoid', costFunct = 'MSE', displayWeights = [],
   #    displayBiases = [], mapLayers = [], mapDendrograms = [], mapBatchSize = 0, bestk = 1, caseFraction = 1, noClases = 11)
 
 
 
 #run_network(dataSource='yeast.txt', hidden = [100], lrate = 0.02, epochs = 1500, vfrac=0.1, tfrac=0.1, 
- #   mbs = 100, sm = True, initWeightRange = (-0.1, 0.1), hiddenActFunct = 'sigmoid', costFunct = 'MSE', displayWeights = [],
-  #    displayBiases = [], mapLayers = [], mapDendrograms = [], mapBatchSize = 0, bestk = 1, caseFraction = 1, noClases = 11)
+ #   mbs = 100, sm = True, initWeightRange = (-0.1, 0.1), hiddenActFunct = 'sigmoid', costFunct = 'MSE', displayWeights = [1],
+  #   displayBiases = [], mapLayers = [], mapDendrograms = [], mapBatchSize = 0, bestk = 1, caseFraction = 1, noClases = 11)
 
 #run_network(dataSource='balance.txt', hidden = [100], lrate = 0.02, epochs = 1500, vfrac=0.1, tfrac=0.1, 
  #   mbs = 100, sm = True, initWeightRange = (-0.1, 0.1), hiddenActFunct = 'sigmoid', costFunct = 'MSE', displayWeights = [],

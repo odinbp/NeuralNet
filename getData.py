@@ -49,7 +49,8 @@ def getTextFileData(x, caseFraction, noClases):
 				feature_class_value = int(row[-1])
 				feature_class_value = feature_class_value - 3
 				feature_class = TFT.int_to_one_hot(feature_class_value, noClases)
-				dataStructured.append([feature_data, feature_class])
+				features.append(feature_data)
+				classes.append(feature_class)
 		else:
 			for row in csv.reader(inputfile):
 				if iterations == 0:
